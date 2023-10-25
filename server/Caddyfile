@@ -1,0 +1,4 @@
+localhost
+
+# Serve static files from the 'www' directory
+root * ./www
