@@ -1,4 +1,6 @@
-localhost
+any.marshmaillow.com:2016
 
-# Serve static files from the 'www' directory
-root * ./www
+tls /etc/caddy/certs/tls.crt /etc/caddy/certs/tls.key
+
+root * /srv
+file_server
