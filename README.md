@@ -14,3 +14,14 @@ sudo docker run --network="host" --name client --rm -d client
 ```
 sudo docker run -it --rm ymuski/curl-http3 curl -vs -D/dev/stdout -o/dev/null --http3 https://any.marshmaillow.com:2016
 ```
+
+DISPLAY=:20 /opt/google/chrome/google-chrome --enable-quic --origin-to-force-quic-on=localhost:2016
+
+# THIS ONE CAN GET h3 in VM
+DISPLAY=:20 /opt/google/chrome/google-chrome --enable-quic --origin-to-force-quic-on=any.marshmaillow.com:2016
+
+--origin-to-force-quic-on=
+--enable-quic
+
+
+
