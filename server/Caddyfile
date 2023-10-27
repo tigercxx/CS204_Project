@@ -1,6 +1,10 @@
-any.marshmaillow.com:2016
+localhost:2016
 
-tls /etc/caddy/certs/tls.crt /etc/caddy/certs/tls.key
+log {
+    output stdout
+    format console
+    level DEBUG
+}
 
 root * /srv
 file_server
