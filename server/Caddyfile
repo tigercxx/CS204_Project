@@ -1,4 +1,6 @@
-localhost:2016
+any.marshmaillow.com:2016
+
+tls /etc/caddy/certs/tls.crt /etc/caddy/certs/tls.key
 
 log {
     output stdout
