@@ -30,4 +30,6 @@ RUN pip3 install -r requirements.txt
 
 COPY client.py client.py
 
+RUN mkdir -p /app/data
+
 CMD ["tail", "-f", "/dev/null"]

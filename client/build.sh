@@ -10,4 +10,6 @@ fi
 
 sleep 1
 
-sudo docker run --network="host" --name client --rm -d client
+sudo docker run --network="host" --name client --rm -d -v $(pwd)/data:/app/data client 
+
+

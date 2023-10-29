@@ -1,2 +1,7 @@
 *.crt
 *.key
+
+*.csv
+*.png
+
+myenv/

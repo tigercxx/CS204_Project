@@ -1,3 +1,4 @@
+import argparse
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -5,50 +6,46 @@ from webdriver_manager.chrome import ChromeDriverManager
 import time
 import csv
 
-def create_job(quic_enabled, link):
+def set_network_conditions(driver, offline=False, latency=0, download_throughput=0, upload_throughput=0):
+    driver.execute_cdp_cmd("Network.enable", {})
+    driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled": True})  # Disable cache
+    driver.execute_cdp_cmd("Network.emulateNetworkConditions", {
+        'offline': offline,
+        'latency': latency,  # additional latency (ms)
+        'downloadThroughput': download_throughput,  # max download throughput (bytes/s)
+        'uploadThroughput': upload_throughput  # max upload throughput (bytes/s)
+    })
+
+
+
+def create_job(protocol, link):
     # Options for Chrome
     chrome_options = Options()
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--headless")
     chrome_options.add_argument('--remote-debugging-port=9222')
 
-    if not quic_enabled:
-        chrome_options.add_argument("disable-quic")
+    if protocol == "http1.1":
+        chrome_options.add_argument("--disable-quic")
+        chrome_options.add_argument("--disable-http2")
+    elif protocol == "http2":
+        chrome_options.add_argument("--disable-quic")
+    elif protocol == "http3":
+        chrome_options.add_argument("--enable-quic")
+        domain_port = link.split("//")[1]
+        chrome_options.add_argument("--origin-to-force-quic-on=" + domain_port)
 
     # Create Driver Instance
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
 
-    # Enable Network domain.
-    driver.execute_cdp_cmd('Network.enable', {})
+    # set_network_conditions(driver, latency=100, download_throughput=1000 * 1024, upload_throughput=1000 * 1024)  
 
-    # Start monitoring network events.
-    events = []
-
-    # Define a listener.
-    def event_listener(event):
-        if event['method'] == 'Network.responseReceived':
-            events.append(event)
-
-    # Add the listener.
-    driver.command_executor._commands["addListener"] = ("POST", "/session/$sessionId/chromium/connect/networkEvents")
-    driver.execute("addListener", {"webSocketUrl": driver.capabilities["goog:chromeOptions"]["debuggerAddress"]})
 
     # Navigate to the URL
     start = time.time()
     driver.get(link)
     end = time.time()
-
-    # Find the responseReceived event for the main document.
-    response_event = next((e for e in events if 'url' in e['params']['response'] and e['params']['response']['url'] == link), None)
-    
-    if response_event:
-        headers = response_event['params']['response']['headers']
-        protocol = response_event['params']['response']['protocol']
-
-        # Print headers and protocol
-        print("Headers:", headers)
-        print("Protocol:", protocol)
 
     # Quit the driver
     driver.quit()
@@ -66,26 +63,54 @@ def log_exception(exception_log_file, job_number, e):
     print(error_message)
     exception_log_file.write(error_message + "\n")
 
-def main():
-    link = "https://localhost:2016"
+def main(iterations, url):
+    URL = url if url else "https://google.com"
+    ITERATIONS = iterations if iterations > 0 else 1
+    PROTOCOLS = ["http1.1", "http2", "http3"]
+    DOMAIN = URL.split("//")[1].split("/")[0]
 
-    with open("exception_log.txt", "w") as exception_log_file:
-        for quick_enabled in [False, True]:
-            for i in range(1, 5):
-                try:
-                    time_taken = create_job(quick_enabled, link)
-                    # Reduce the number of decimal places
-                    time_taken = round(time_taken, 2)
+    # Clear data in CSV files
+    for protocol in PROTOCOLS:
+        with open(f"data/{protocol}_{DOMAIN}.csv", 'w') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(["time_taken"])
+            csvfile.close()
 
-                    print(f"Job {i}:")
-                    print(f"QUIC Enabled: {quick_enabled}")
-                    print(f"Time taken: {time_taken} seconds")
-                    print()                    
-                    
-                    # Write to CSV
-                    log_to_csv("results.csv", [quick_enabled, time_taken])
-                except Exception as e:
-                    log_exception(exception_log_file, i, e)
+    for protocol in PROTOCOLS:
+        for i in range(ITERATIONS):
+            try:
+                time_taken = create_job(protocol, URL)
+                time_taken = round(time_taken, 2)
+
+                print(f"Job {i + 1}:")
+                print(f"Protocol: {protocol}")
+                print(f"Time taken: {time_taken} seconds")
+                print()                    
+
+                # Write to CSV
+                log_to_csv(f"data/{protocol}_{DOMAIN}.csv", [time_taken])
+            except Exception as e:
+                log_exception("exception_log.txt", i + 1, e)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Measure page load time with http1.1, http2, http3.")
+    parser.add_argument("iterations", type=int, help="Number of iterations to run.")
+    parser.add_argument("url", type=str, help="Web page link to measure.")
+    
+    args = parser.parse_args()
+
+    if not args.url:
+        print("URL not provided, using https://google.com")
+
+    if args.iterations < 1:
+        print("Iterations must be greater than 0.")
+        exit(1)
+
+    if not args.iterations:
+        print("Iterations not provided, using 1.")
+
+    if not args.url.startswith("http"):
+        print("URL must start with http or https.")
+        exit(1)
+
+    main(args.iterations, args.url)
